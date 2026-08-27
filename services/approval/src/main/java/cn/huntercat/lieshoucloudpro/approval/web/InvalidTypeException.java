@@ -2,7 +2,7 @@ package cn.huntercat.lieshoucloudpro.approval.web;
 
 import org.springframework.http.HttpStatus;
 
-import cn.huntercat.lieshoucloudpro.common.api.BaseException;
+import cn.huntercat.lieshou.framework.common.api.BaseException;
 
 /** 审批类型非法（→ 400 INVALID_TYPE · L2-1 基类下沉）. */
 public class InvalidTypeException extends BaseException {

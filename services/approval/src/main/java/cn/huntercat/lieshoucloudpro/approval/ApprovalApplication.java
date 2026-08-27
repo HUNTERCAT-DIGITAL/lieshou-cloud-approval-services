@@ -21,7 +21,7 @@ import io.swagger.v3.oas.annotations.servers.Server;
  * <p>沿用 crm-service 的 ADR-0025 模式：所有业务端点强制读取 gateway 注入的 {@code X-Tenant-Id} header，缺失/非法 →
  * 401；跨租户访问 → 404。
  */
-@SpringBootApplication(scanBasePackages = "cn.huntercat.lieshoucloudpro")
+@SpringBootApplication(scanBasePackages = {"cn.huntercat.lieshoucloudpro", "cn.huntercat.lieshou.framework"})
 @EntityScan(basePackages = "cn.huntercat.lieshoucloudpro.approval.domain")
 @EnableJpaRepositories(basePackages = "cn.huntercat.lieshoucloudpro.approval.domain")
 @EnableDiscoveryClient
