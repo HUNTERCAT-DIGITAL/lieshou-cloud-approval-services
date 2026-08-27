@@ -12,7 +12,7 @@
     </parent>
 
     <artifactId>lieshoucloud-approval</artifactId>
-    <name>LieShouCloud · Approval Service</name>
+    <name>lieshou-cloud · Approval Service</name>
     <description>审批流服务（通用审批请求 · tenant_id 强制过滤，ADR-0025 模式）</description>
 
     <dependencies>

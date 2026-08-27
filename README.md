@@ -1,7 +1,7 @@
-# LieShouCloud-approval-services · 开源后端服务:approval
+# lieshou-cloud-approval-services · 开源后端服务:approval
 
-> 自 LieShouCloud-core/services/approval 拆分(2026-08 细粒度)。
-> 组合:services/common → LieShouCloud-common。
+> 自 lieshou-cloud-core/services/approval 拆分(2026-08 细粒度)。
+> 组合:services/common → lieshou-cloud-common。
 
 ```bash
 cd services
