@@ -1,17 +1,5 @@
 package cn.huntercat.lieshoucloudpro.approval.web;
 
-import cn.huntercat.lieshou.framework.approval.ApprovalService;
-import cn.huntercat.lieshou.framework.approval.dto.ApprovalDtos.CreateApprovalRequest;
-import cn.huntercat.lieshou.framework.approval.dto.ApprovalDtos.DecideRequest;
-import cn.huntercat.lieshou.framework.approval.dto.ApprovalDtos.RejectRequest;
-import cn.huntercat.lieshou.framework.approval.dto.ApprovalForbiddenException;
-import cn.huntercat.lieshou.framework.common.api.TenantContextRequiredException;
-import cn.huntercat.lieshou.framework.approval.domain.ApprovalAuditLog;
-import cn.huntercat.lieshou.framework.approval.domain.ApprovalRequest;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.Valid;
-import java.util.List;
-import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,11 +10,24 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+
+import cn.huntercat.lieshou.framework.approval.ApprovalService;
+import cn.huntercat.lieshou.framework.approval.domain.ApprovalAuditLog;
+import cn.huntercat.lieshou.framework.approval.domain.ApprovalRequest;
+import cn.huntercat.lieshou.framework.approval.dto.ApprovalDtos.CreateApprovalRequest;
+import cn.huntercat.lieshou.framework.approval.dto.ApprovalDtos.DecideRequest;
+import cn.huntercat.lieshou.framework.approval.dto.ApprovalDtos.RejectRequest;
+import cn.huntercat.lieshou.framework.approval.dto.ApprovalForbiddenException;
+import cn.huntercat.lieshou.framework.common.api.TenantContextRequiredException;
+import java.util.List;
+import java.util.Map;
+
 /**
  * 审批 Controller（薄壳 · web 装配）。
  *
- * <p>业务逻辑在 {@link ApprovalService}（LieShou-framework，上游同源唯一）；
- * 本层只做租户/用户头解析 + HTTP 装配。
+ * <p>业务逻辑在 {@link ApprovalService}（LieShou-framework，上游同源唯一）； 本层只做租户/用户头解析 + HTTP 装配。
  */
 @RestController
 @RequestMapping("/api/approvals")

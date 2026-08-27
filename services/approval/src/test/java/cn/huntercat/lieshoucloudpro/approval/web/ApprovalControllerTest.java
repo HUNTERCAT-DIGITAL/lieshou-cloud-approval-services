@@ -19,11 +19,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import cn.huntercat.lieshou.framework.approval.domain.ApprovalAuditLog;
-import cn.huntercat.lieshoucloudpro.approval.PostgresTestSupport;
 import cn.huntercat.lieshou.framework.approval.domain.ApprovalAuditLogRepository;
 import cn.huntercat.lieshou.framework.approval.port.UserQueryPort;
 import cn.huntercat.lieshou.framework.approval.port.UserView;
+import cn.huntercat.lieshoucloudpro.approval.PostgresTestSupport;
 import java.util.List;
 
 /** 审批端点集成测试（强制租户 + 状态机 + 权限 · ADR-0025 模式 · ADR-0032）. */
