@@ -22,8 +22,14 @@ import io.swagger.v3.oas.annotations.servers.Server;
  * 401；跨租户访问 → 404。
  */
 @SpringBootApplication(scanBasePackages = {"cn.huntercat.lieshoucloudpro", "cn.huntercat.lieshou.framework"})
-@EntityScan(basePackages = "cn.huntercat.lieshoucloudpro.approval.domain")
-@EnableJpaRepositories(basePackages = "cn.huntercat.lieshoucloudpro.approval.domain")
+@EntityScan(basePackageClasses = {
+      cn.huntercat.lieshou.framework.approval.domain.ApprovalRequest.class,
+      cn.huntercat.lieshou.framework.approval.domain.ApprovalAuditLog.class
+    })
+@EnableJpaRepositories(basePackageClasses = {
+      cn.huntercat.lieshou.framework.approval.domain.ApprovalRequestRepository.class,
+      cn.huntercat.lieshou.framework.approval.domain.ApprovalAuditLogRepository.class
+    })
 @EnableDiscoveryClient
 @EnableFeignClients(basePackages = "cn.huntercat.lieshoucloudpro.approval.feign")
 @EnableAsync // 审批邮件通知异步发送（不阻塞审批主流程 · ADR-0032）

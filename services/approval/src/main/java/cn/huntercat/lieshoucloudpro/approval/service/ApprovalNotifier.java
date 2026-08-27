@@ -9,9 +9,9 @@ import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import cn.huntercat.lieshoucloudpro.approval.domain.ApprovalRequest;
-import cn.huntercat.lieshoucloudpro.approval.feign.UserQueryClient;
-import cn.huntercat.lieshoucloudpro.approval.feign.UserView;
+import cn.huntercat.lieshou.framework.approval.domain.ApprovalRequest;
+import cn.huntercat.lieshou.framework.approval.port.UserQueryPort;
+import cn.huntercat.lieshou.framework.approval.port.UserView;
 import java.util.Optional;
 
 /**
@@ -21,23 +21,24 @@ import java.util.Optional;
  * 未配置（dev/docker）→ 旁路并记 info 日志。
  */
 @Component
-public class ApprovalNotifier {
+public class ApprovalNotifier implements cn.huntercat.lieshou.framework.approval.port.NotifierPort {
 
   private static final Logger log = LoggerFactory.getLogger(ApprovalNotifier.class);
 
   private final Optional<JavaMailSender> mailSender;
-  private final UserQueryClient users;
+  private final UserQueryPort users;
 
   @Value("${EMAIL_FROM_ADDR:lieshoucloud@huntercat.cn}")
   private String fromAddr;
 
-  public ApprovalNotifier(Optional<JavaMailSender> mailSender, UserQueryClient users) {
+  public ApprovalNotifier(Optional<JavaMailSender> mailSender, UserQueryPort users) {
     this.mailSender = mailSender;
     this.users = users;
   }
 
   /** 待审批提醒（发给审批人） */
   @Async
+  @Override
   public void notifyApprover(Long tenantId, ApprovalRequest request) {
     UserView approver = findUser(tenantId, request.getApproverId());
     if (approver == null) return;
@@ -46,6 +47,7 @@ public class ApprovalNotifier {
 
   /** 审批结果通知（发给发起人 · result = 通过/驳回） */
   @Async
+  @Override
   public void notifyRequester(Long tenantId, ApprovalRequest request, String result) {
     UserView requester = findUser(tenantId, request.getRequesterId());
     if (requester == null) return;

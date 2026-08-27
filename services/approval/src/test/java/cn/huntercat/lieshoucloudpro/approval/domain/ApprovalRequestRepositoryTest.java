@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import cn.huntercat.lieshou.framework.approval.domain.ApprovalRequest;
+import cn.huntercat.lieshou.framework.approval.domain.ApprovalRequestRepository;
 import cn.huntercat.lieshoucloudpro.approval.PostgresTestSupport;
 import java.math.BigDecimal;
 import java.util.List;

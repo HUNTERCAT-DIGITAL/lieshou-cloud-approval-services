@@ -1,29 +1,32 @@
 package cn.huntercat.lieshoucloudpro.approval.feign;
 
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
-
-import org.springframework.cloud.openfeign.FeignClient;
-
 import java.util.List;
 
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
+
+import cn.huntercat.lieshou.framework.approval.port.UserQueryPort;
+import cn.huntercat.lieshou.framework.approval.port.UserView;
+
 /**
- * approval-service → user-service 查询（阶段 2 · 审批人用户下拉 + 自动选审批人 · ADR-0032）.
+ * approval-service → user-service 查询（薄壳 Feign 装配）。
  *
- * <p>只有读端点（租户用户列表）；写操作（创建用户等）由 user 服务独占。调用时透传 {@code X-Tenant-Id}，user-service 端按 ADR-0022
- * 只返回该租户用户。
+ * <p>业务契约在 {@link UserQueryPort}（LieShou-framework，上游同源唯一）；
+ * 本接口仅补 Feign HTTP 映射，由 OpenFeign 从 Nacos 发现 user-service。
  */
 @FeignClient(name = "lieshoucloud-user", path = "/api/users")
-public interface UserQueryClient {
+public interface UserQueryClient extends UserQueryPort {
 
-  /** 租户用户列表（含 roles code 数组；approval 服务自动选审批人时用） */
+  @Override
   @GetMapping
   List<UserView> listTenantUsers(
       @RequestHeader(value = "X-Tenant-Id", required = false) String tenantId);
 
-  /** 单个用户（通知收件人邮箱用 · 返回 User 实体 JSON，passwordHash WRITE_ONLY 不泄露） */
+  @Override
   @GetMapping("/{id}")
   UserView getUserById(
-      @org.springframework.web.bind.annotation.PathVariable Long id,
+      @PathVariable Long id,
       @RequestHeader(value = "X-Tenant-Id", required = false) String tenantId);
 }
