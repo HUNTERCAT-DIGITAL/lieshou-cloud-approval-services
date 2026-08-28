@@ -26,12 +26,14 @@ import io.swagger.v3.oas.annotations.servers.Server;
 @EntityScan(
     basePackageClasses = {
       cn.huntercat.lieshou.framework.approval.domain.ApprovalRequest.class,
-      cn.huntercat.lieshou.framework.approval.domain.ApprovalAuditLog.class
+      cn.huntercat.lieshou.framework.approval.domain.ApprovalAuditLog.class,
+      cn.huntercat.lieshoucloudpro.approval.domain.ApprovalTypeConfig.class
     })
 @EnableJpaRepositories(
     basePackageClasses = {
       cn.huntercat.lieshou.framework.approval.domain.ApprovalRequestRepository.class,
-      cn.huntercat.lieshou.framework.approval.domain.ApprovalAuditLogRepository.class
+      cn.huntercat.lieshou.framework.approval.domain.ApprovalAuditLogRepository.class,
+      cn.huntercat.lieshoucloudpro.approval.domain.ApprovalTypeConfigRepository.class
     })
 @EnableDiscoveryClient
 @EnableFeignClients(basePackages = "cn.huntercat.lieshoucloudpro.approval.feign")
