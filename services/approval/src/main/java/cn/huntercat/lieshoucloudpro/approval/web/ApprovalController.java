@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import cn.huntercat.lieshou.framework.approval.ApprovalService;
 import cn.huntercat.lieshou.framework.approval.domain.ApprovalAuditLog;
 import cn.huntercat.lieshou.framework.approval.domain.ApprovalRequest;
@@ -21,6 +24,8 @@ import cn.huntercat.lieshou.framework.approval.dto.ApprovalDtos.DecideRequest;
 import cn.huntercat.lieshou.framework.approval.dto.ApprovalDtos.RejectRequest;
 import cn.huntercat.lieshou.framework.approval.dto.ApprovalForbiddenException;
 import cn.huntercat.lieshou.framework.common.api.TenantContextRequiredException;
+import cn.huntercat.lieshoucloudpro.approval.feign.ProjectCreateClient;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -33,13 +38,18 @@ import java.util.Map;
 @RequestMapping("/api/approvals")
 public class ApprovalController {
 
+  private static final Logger log = LoggerFactory.getLogger(ApprovalController.class);
+
   private static final String HDR_TENANT_ID = "X-Tenant-Id";
   private static final String HDR_USER_ID = "X-User-Id";
 
   private final ApprovalService approvalService;
+  private final ProjectCreateClient projectCreateClient;
 
-  public ApprovalController(ApprovalService approvalService) {
+  public ApprovalController(
+      ApprovalService approvalService, ProjectCreateClient projectCreateClient) {
     this.approvalService = approvalService;
+    this.projectCreateClient = projectCreateClient;
   }
 
   @GetMapping
@@ -99,7 +109,7 @@ public class ApprovalController {
       @RequestHeader(value = HDR_TENANT_ID, required = false) String tenantHeader,
       @RequestHeader(value = HDR_USER_ID, required = false) String userHeader,
       HttpServletRequest req) {
-    return ResponseEntity.ok(
+    ApprovalRequest approved =
         approvalService.approve(
             id,
             requireTenant(tenantHeader),
@@ -107,7 +117,87 @@ public class ApprovalController {
             body,
             clientIp(req),
             userAgent(req),
-            req.getHeader("X-Request-Id")));
+            req.getHeader("X-Request-Id"));
+    // 立项审批通过 → 自动创建项目（幂等：项目名+子公司匹配；失败仅日志，不阻断审批）
+    maybeCreateProjectFromProposal(approved, tenantHeader, userHeader);
+    return ResponseEntity.ok(approved);
+  }
+
+  /**
+   * 立项类审批（title 以【立项】开头且 detail 含 projectName/orgId）通过后自动建项目。 失败/无 project
+   * 服务时降级为日志（审批本身已成功，发起人可在一键建项目手动补建）。
+   */
+  private void maybeCreateProjectFromProposal(
+      ApprovalRequest approved, String tenantHeader, String userHeader) {
+    if (approved == null
+        || approved.getTitle() == null
+        || !approved.getTitle().startsWith("【立项】")) {
+      return;
+    }
+    if (approved.getDetail() == null || approved.getDetail().isBlank()) return;
+    try {
+      var detail = parseDetail(approved.getDetail());
+      String projectName = str(detail.get("projectName"));
+      Object orgIdRaw = detail.get("orgId");
+      if (projectName == null || projectName.isBlank() || orgIdRaw == null) {
+        log.warn("[auto-project] 立项 detail 缺 projectName/orgId，跳过自动建项目 id={}", approved.getId());
+        return;
+      }
+      Long orgId = Long.valueOf(String.valueOf(orgIdRaw));
+      String code =
+          "P" + (approved.getId() != null ? approved.getId() : System.currentTimeMillis());
+      Object budgetRaw = detail.get("budget");
+      BigDecimal budget = budgetRaw == null ? null : new BigDecimal(String.valueOf(budgetRaw));
+      var reqBody =
+          new ProjectCreateClient.CreateProjectRequest(
+              code,
+              projectName,
+              orgId,
+              null,
+              "ACTIVE",
+              null,
+              null,
+              budget,
+              null,
+              proposalSummary(detail));
+      projectCreateClient.create(reqBody, tenantHeader, userHeader);
+      log.info("[auto-project] 立项审批通过自动建项目 id={} project={}", approved.getId(), projectName);
+    } catch (Exception e) {
+      // 项目服务不可用 / 契约不匹配 / 已存在等：降级，不影响审批结果
+      log.warn("[auto-project] 自动建项目失败（可手动一键建） id={} err={}", approved.getId(), e.getMessage());
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  private static Map<String, Object> parseDetail(String detail) {
+    try {
+      var node = new com.fasterxml.jackson.databind.ObjectMapper().readTree(detail);
+      if (node != null && node.isObject()) {
+        return new com.fasterxml.jackson.databind.ObjectMapper().convertValue(node, Map.class);
+      }
+    } catch (Exception ignored) {
+      /* 非 JSON detail */
+    }
+    return Map.of();
+  }
+
+  private static String str(Object v) {
+    return v == null ? null : String.valueOf(v);
+  }
+
+  /** 汇总文本（对齐前端 proposalSummary：背景/目标/范围/里程碑） */
+  private static String proposalSummary(Map<String, Object> d) {
+    StringBuilder sb = new StringBuilder();
+    String[] keys = {"background", "objectives", "scope", "milestones"};
+    String[] labels = {"背景", "目标", "范围", "里程碑"};
+    for (int i = 0; i < keys.length; i++) {
+      String v = str(d.get(keys[i]));
+      if (v != null && !v.isBlank()) {
+        if (sb.length() > 0) sb.append("\n");
+        sb.append("【").append(labels[i]).append("】").append(v);
+      }
+    }
+    return sb.toString();
   }
 
   @PostMapping("/{id}/reject")
