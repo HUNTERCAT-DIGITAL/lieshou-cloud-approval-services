@@ -24,6 +24,7 @@ import cn.huntercat.lieshou.framework.approval.dto.ApprovalDtos.DecideRequest;
 import cn.huntercat.lieshou.framework.approval.dto.ApprovalDtos.RejectRequest;
 import cn.huntercat.lieshou.framework.approval.dto.ApprovalForbiddenException;
 import cn.huntercat.lieshou.framework.common.api.TenantContextRequiredException;
+import cn.huntercat.lieshoucloudpro.approval.feign.EmployeeStatusClient;
 import cn.huntercat.lieshoucloudpro.approval.feign.ProjectCreateClient;
 import java.math.BigDecimal;
 import java.util.List;
@@ -45,11 +46,15 @@ public class ApprovalController {
 
   private final ApprovalService approvalService;
   private final ProjectCreateClient projectCreateClient;
+  private final EmployeeStatusClient employeeStatusClient;
 
   public ApprovalController(
-      ApprovalService approvalService, ProjectCreateClient projectCreateClient) {
+      ApprovalService approvalService,
+      ProjectCreateClient projectCreateClient,
+      EmployeeStatusClient employeeStatusClient) {
     this.approvalService = approvalService;
     this.projectCreateClient = projectCreateClient;
+    this.employeeStatusClient = employeeStatusClient;
   }
 
   @GetMapping
@@ -120,13 +125,55 @@ public class ApprovalController {
             req.getHeader("X-Request-Id"));
     // 立项审批通过 → 自动创建项目（幂等：项目名+子公司匹配；失败仅日志，不阻断审批）
     maybeCreateProjectFromProposal(approved, tenantHeader, userHeader);
+    // HR 入转调离审批通过 → 自动更新员工档案状态（B3；失败仅日志）
+    maybeApplyHrLifecycle(approved, tenantHeader, userHeader);
     return ResponseEntity.ok(approved);
   }
 
   /**
-   * 立项类审批（title 以【立项】开头且 detail 含 projectName/orgId）通过后自动建项目。 失败/无 project
-   * 服务时降级为日志（审批本身已成功，发起人可在一键建项目手动补建）。
+   * HR 入转调离类审批（title 以【HR 入转调离】开头且 detail 含 employeeId/action）通过后自动更新员工状态。 动作映射：入职→PROBATION /
+   * 转正→ACTIVE / 调岗→TRANSFERRED / 离职→RESIGNED。失败降级为日志（审批已成功，HR 可在员工页手动流转）。
    */
+  private void maybeApplyHrLifecycle(
+      ApprovalRequest approved, String tenantHeader, String userHeader) {
+    if (approved == null
+        || approved.getTitle() == null
+        || !approved.getTitle().startsWith("【HR 入转调离】")) {
+      return;
+    }
+    if (approved.getDetail() == null || approved.getDetail().isBlank()) return;
+    try {
+      var detail = parseDetail(approved.getDetail());
+      Object empIdRaw = detail.get("employeeId");
+      String action = str(detail.get("action"));
+      if (empIdRaw == null || action == null || action.isBlank()) {
+        log.warn("[hr-lifecycle] detail 缺 employeeId/action，跳过 id={}", approved.getId());
+        return;
+      }
+      Long empId = Long.valueOf(String.valueOf(empIdRaw));
+      String status = switch (action) {
+        case "入职" -> "PROBATION";
+        case "转正" -> "ACTIVE";
+        case "调岗" -> "TRANSFERRED";
+        case "离职" -> "RESIGNED";
+        default -> null;
+      };
+      if (status == null) {
+        log.warn("[hr-lifecycle] 未知动作 {}，跳过 id={}", action, approved.getId());
+        return;
+      }
+      String remark =
+          "HR审批#" + approved.getId() + " " + action + "：" + str(detail.get("reason"));
+      employeeStatusClient.changeStatus(
+          empId, new EmployeeStatusClient.StatusChangeRequest(status, remark), tenantHeader, userHeader);
+      log.info(
+          "[hr-lifecycle] 员工 {} 状态 → {}（审批#{} {})",
+          empId, status, approved.getId(), action);
+    } catch (Exception e) {
+      log.warn("[hr-lifecycle] 更新员工状态失败（不阻断审批）id={}: {}", approved.getId(), e.getMessage());
+    }
+  }
+
   private void maybeCreateProjectFromProposal(
       ApprovalRequest approved, String tenantHeader, String userHeader) {
     if (approved == null
