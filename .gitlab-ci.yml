@@ -1,6 +1,6 @@
 # lieshou-cloud · approval-services 质量门禁（GitLab CI · 2026-09）
 # 前置：huntercat-digital 组级 docker runner（java-maven @ wqc-server-dell · tags: java,wqc）
-# 门 = mvn -B -ntp verify（单测 + jacoco）+ 本仓 spotless check
+# 门 = mvn -B -ntp verify（spotless:check + 单测 + jacoco，由 framework-parent 统一绑定）
 #      PG 集成测试：CI 由下面的 postgres service 提供真库（本地开发仍走 Testcontainers——
 #      宿主 ufw INPUT DROP 会挡掉 job 容器 → 宿主随机发布端口的回连，走容器网络 alias 才稳）
 stages: [verify]
@@ -36,11 +36,7 @@ verify:
     - git submodule update --init --recursive
   script:
     - java -version
-    # framework submodule pin（06d019d，2026-09-08）早于上游「全仓格式对齐」提交 → 那几个 framework-*
-    # 模块的 spotless 违规是上游旧提交自身的问题（framework 仓 CI 已自管，pin 前移后本步可去掉 skip）
-    - mvn -B -ntp verify -Dspotless.check.skip=true
-    # 本仓格式门：services/ 下所有模块（不含 framework submodule）
-    - mvn -B -ntp -f services/pom.xml spotless:check
+    - mvn -B -ntp verify
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
