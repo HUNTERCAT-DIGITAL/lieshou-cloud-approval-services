@@ -16,24 +16,37 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * stop 容器 → 端口漂移 + Spring 上下文缓存复用旧 URL → Connection refused），改静态初始化块只 start 一次，所有继承类共用同一容器同一端口。容器由
  * Ryuk 在 JVM 退出时回收。
  *
+ * <p>CI：由 GitLab job 的 postgres service 提供库（注入 {@code SPRING_DATASOURCE_URL} 等 env），此时不起容器 —— 对齐上游
+ * lieshou-cloud-core CI 的 postgres service 做法。
+ *
  * @see .ai/TESTING.md §9
  * @see .ai/decisions/0021-flyway-schema.md
  * @see .ai/decisions/0032-approval-workflow.md
  */
 public abstract class PostgresTestSupport {
 
+  /** 外部已提供库（CI service）→ 自己不起容器 */
+  private static final boolean EXTERNAL_DB = System.getenv("SPRING_DATASOURCE_URL") != null;
+
   static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>("postgres:16-alpine")
-          .withDatabaseName("lieshoucloudpro")
-          .withUsername("postgres")
-          .withPassword("postgres");
+      EXTERNAL_DB
+          ? null
+          : new PostgreSQLContainer<>("postgres:16-alpine")
+              .withDatabaseName("lieshoucloudpro")
+              .withUsername("postgres")
+              .withPassword("postgres");
 
   static {
-    POSTGRES.start();
+    if (POSTGRES != null) {
+      POSTGRES.start();
+    }
   }
 
   @DynamicPropertySource
   static void datasourceProps(DynamicPropertyRegistry registry) {
+    if (POSTGRES == null) {
+      return; // 用 env 里的 SPRING_DATASOURCE_*（CI service）
+    }
     registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
     registry.add("spring.datasource.username", POSTGRES::getUsername);
     registry.add("spring.datasource.password", POSTGRES::getPassword);
