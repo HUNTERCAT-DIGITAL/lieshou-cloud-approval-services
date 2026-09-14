@@ -151,24 +151,25 @@ public class ApprovalController {
         return;
       }
       Long empId = Long.valueOf(String.valueOf(empIdRaw));
-      String status = switch (action) {
-        case "入职" -> "PROBATION";
-        case "转正" -> "ACTIVE";
-        case "调岗" -> "TRANSFERRED";
-        case "离职" -> "RESIGNED";
-        default -> null;
-      };
+      String status =
+          switch (action) {
+            case "入职" -> "PROBATION";
+            case "转正" -> "ACTIVE";
+            case "调岗" -> "TRANSFERRED";
+            case "离职" -> "RESIGNED";
+            default -> null;
+          };
       if (status == null) {
         log.warn("[hr-lifecycle] 未知动作 {}，跳过 id={}", action, approved.getId());
         return;
       }
-      String remark =
-          "HR审批#" + approved.getId() + " " + action + "：" + str(detail.get("reason"));
+      String remark = "HR审批#" + approved.getId() + " " + action + "：" + str(detail.get("reason"));
       employeeStatusClient.changeStatus(
-          empId, new EmployeeStatusClient.StatusChangeRequest(status, remark), tenantHeader, userHeader);
-      log.info(
-          "[hr-lifecycle] 员工 {} 状态 → {}（审批#{} {})",
-          empId, status, approved.getId(), action);
+          empId,
+          new EmployeeStatusClient.StatusChangeRequest(status, remark),
+          tenantHeader,
+          userHeader);
+      log.info("[hr-lifecycle] 员工 {} 状态 → {}（审批#{} {})", empId, status, approved.getId(), action);
     } catch (Exception e) {
       log.warn("[hr-lifecycle] 更新员工状态失败（不阻断审批）id={}: {}", approved.getId(), e.getMessage());
     }

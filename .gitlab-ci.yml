@@ -1,7 +1,8 @@
 # lieshou-cloud · approval-services 质量门禁（GitLab CI · 2026-09）
 # 前置：huntercat-digital 组级 docker runner（java-maven @ wqc-server-dell · tags: java,wqc）
-# 门 = mvn -B -ntp verify（spotless check + 单测）；PG 集成测试由 Testcontainers 起真库
-#      → runner 侧已把宿主 /var/run/docker.sock 挂进 job 容器（本仓为 cloud 服务首个 PG 集成测试仓）
+# 门 = mvn -B -ntp verify（单测 + jacoco）+ 本仓 spotless check
+#      PG 集成测试用 Testcontainers 起真库（postgres:16-alpine）→ job 容器靠挂进来的宿主
+#      /var/run/docker.sock 起容器（对齐上游 GitHub hosted runner 有 docker 的事实）
 stages: [verify]
 
 variables:
@@ -10,6 +11,8 @@ variables:
   # 不用 GitLab 的隐式递归：它在 before_script 之前执行且不 sync URL（房内事故结论），
   # 子仓 URL 是 ssh://…:22220/…，job 容器里没有私钥 → 必须自己重写成 CI_JOB_TOKEN 的 HTTPS
   GIT_SUBMODULE_STRATEGY: none
+  # docker-outside-of-docker：Testcontainers 起的 PG 端口发布在宿主，job 容器要按宿主名回连
+  TESTCONTAINERS_HOST_OVERRIDE: "host.docker.internal"
   # 依赖缓存由 runner 宿主卷提供（/srv/gitlab-runner-cache/m2 → /root/.m2）
 
 default:
@@ -25,7 +28,11 @@ verify:
     - git submodule update --init --recursive
   script:
     - java -version
-    - mvn -B -ntp verify
+    # framework submodule pin（06d019d，2026-09-08）早于上游「全仓格式对齐」提交 → 那几个 framework-*
+    # 模块的 spotless 违规是上游旧提交自身的问题（framework 仓 CI 已自管，pin 前移后本步可去掉 skip）
+    - mvn -B -ntp verify -Dspotless.check.skip=true
+    # 本仓格式门：services/ 下所有模块（不含 framework submodule）
+    - mvn -B -ntp -f services/pom.xml spotless:check
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
