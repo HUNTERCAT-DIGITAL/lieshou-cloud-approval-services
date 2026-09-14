@@ -3,7 +3,7 @@
 # 门 = mvn -B -ntp verify（spotless:check + 单测 + jacoco，由 framework-parent 统一绑定）
 #      PG 集成测试：CI 由下面的 postgres service 提供真库（本地开发仍走 Testcontainers——
 #      宿主 ufw INPUT DROP 会挡掉 job 容器 → 宿主随机发布端口的回连，走容器网络 alias 才稳）
-stages: [verify, deploy]
+stages: [verify, deploy, image]
 
 variables:
   # 内网 Caddy 自签证书不在 job 容器信任库 → 放行 git 传输（对齐 mobile-web / auth-services 先例）
@@ -12,6 +12,9 @@ variables:
   # 子仓 URL 是 ssh://…:22220/…，job 容器里没有私钥 → 必须自己重写成 CI_JOB_TOKEN 的 HTTPS
   GIT_SUBMODULE_STRATEGY: none
   # 依赖缓存由 runner 宿主卷提供（/srv/gitlab-runner-cache/m2 → /root/.m2）
+  # —— Harbor（镜像仓）：project lieshou-cloud，robot robot$lieshou-cloud+gitlab-ci ——
+  HARBOR_REGISTRY: harbor.ts.huntercat.cn
+  HARBOR_IMAGE: harbor.ts.huntercat.cn/lieshou-cloud/approval
   # —— postgres service（镜像/版本与 PostgresTestSupport 的 Testcontainers 一致）——
   POSTGRES_DB: lieshoucloudpro
   POSTGRES_USER: postgres
@@ -63,3 +66,29 @@ deploy:
     - printf '<settings><servers><server><id>nexus</id><username>%s</username><password>%s</password></server></servers><mirrors><mirror><id>nexus-public</id><url>https://nexus.ts.huntercat.cn/repository/maven-public/</url><mirrorOf>*,!nexus</mirrorOf></mirror></mirrors></settings>' "$NEXUS_DEPLOY_USER" "$NEXUS_DEPLOY_PASS" > /tmp/ci-settings.xml
     # -pl 只发 approval（依赖 framework-* 从 maven-public/本地库解析）；测试已在 verify 阶段卡过
     - mvn -B -ntp -s /tmp/ci-settings.xml -pl services/approval -DskipTests deploy
+
+# 镜像构建 + 推送 Harbor（CD 第一段：可运行制品）
+# tag → :<version> 自动；main → :dev 手动（不扰民，也不给每次 push 都烧一个全量镜像构建）
+# 前置：runner 已把宿主 /var/run/docker.sock 挂进 job（构建/推送都走宿主 daemon）
+build-image:
+  stage: image
+  timeout: 45m
+  # docker:cli 自带 git/ssh（子仓初始化）+ docker CLI，宿主零安装
+  image: docker.1ms.run/docker:cli
+  rules:
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+  before_script:
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ts.huntercat.cn/huntercat-digital/".insteadOf "ssh://git@gitlab.ts.huntercat.cn:22220/huntercat-digital/"
+    - git submodule sync --recursive
+    - git submodule update --init --recursive
+  script:
+    - echo "$HARBOR_PASS" | docker login "$HARBOR_REGISTRY" -u "$HARBOR_USER" --password-stdin
+    - |
+      set -e
+      if [ -n "$CI_COMMIT_TAG" ]; then TAG="${CI_COMMIT_TAG#v}"; else TAG="dev"; fi
+      echo "构建 $HARBOR_IMAGE:$TAG（context = 仓库根，services/approval/Dockerfile）"
+      docker build -f services/approval/Dockerfile -t "$HARBOR_IMAGE:$TAG" .
+      docker push "$HARBOR_IMAGE:$TAG"
+      echo "✅ 已推送 $HARBOR_IMAGE:$TAG"
