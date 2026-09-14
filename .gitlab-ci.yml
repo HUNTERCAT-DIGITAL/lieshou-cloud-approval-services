@@ -84,7 +84,9 @@ build-image:
     - git submodule sync --recursive
     - git submodule update --init --recursive
   script:
-    - echo "$HARBOR_PASS" | docker login "$HARBOR_REGISTRY" -u "$HARBOR_USER" --password-stdin
+    # ⚠️ robot 用户名里的 $ 不能走 CI 变量：GitLab 把 $lieshou 当未定义变量吃掉（Harbor 日志实测收到 robot-cloud+gitlab-ci）
+    #    单引号里是字面量：GitLab 不替换、shell 也不展开
+    - echo "$HARBOR_PASS" | docker login "$HARBOR_REGISTRY" -u 'robot$lieshou-cloud+gitlab-ci' --password-stdin
     - |
       set -e
       if [ -n "$CI_COMMIT_TAG" ]; then TAG="${CI_COMMIT_TAG#v}"; else TAG="dev"; fi
