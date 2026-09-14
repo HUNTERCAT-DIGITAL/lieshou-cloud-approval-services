@@ -10,10 +10,13 @@ import org.springframework.cloud.openfeign.FeignClient;
 /**
  * approval-service → project-service 员工状态流转（HR 入转调离审批通过后自动更新档案，B3）。
  *
- * <p>复用 ProjectCreateClient 的 Feign 注册（lieshoucloud-project）；调用失败由调用方捕获降级（不阻断审批）。
- * HR 审批 detail JSON 含 employeeId + action（入职/转正/调岗/离职）时触发。
+ * <p>复用 ProjectCreateClient 的 Feign 注册（lieshoucloud-project）；调用失败由调用方捕获降级（不阻断审批）。 HR 审批 detail JSON
+ * 含 employeeId + action（入职/转正/调岗/离职）时触发。
  */
-@FeignClient(name = "lieshoucloud-project", contextId = "employee-status-client", path = "/api/employees")
+@FeignClient(
+    name = "lieshoucloud-project",
+    contextId = "employee-status-client",
+    path = "/api/employees")
 public interface EmployeeStatusClient {
 
   record StatusChangeRequest(String status, String remark) {}

@@ -149,26 +149,32 @@ class ApprovalTypeControllerTest extends PostgresTestSupport {
 
   @Test
   void crossTenantIsolation_invisibleAndNotFound() throws Exception {
-    mockMvc
-        .perform(
-            post("/api/approval-types")
-                .header("X-Tenant-Id", "1")
-                .header("X-User-Id", "9")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(CREATE_BODY))
-        .andExpect(status().isOk());
+    String created =
+        mockMvc
+            .perform(
+                post("/api/approval-types")
+                    .header("X-Tenant-Id", "1")
+                    .header("X-User-Id", "9")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(CREATE_BODY))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    long id =
+        new com.fasterxml.jackson.databind.ObjectMapper().readTree(created).get("id").asLong();
 
-    // 租户 2 列表不可见
+    // 租户 3（无 seed 数据）列表不可见 —— 租户 2 有 V4 seed，不能拿来断言“空”
     mockMvc
-        .perform(get("/api/approval-types").header("X-Tenant-Id", "2").header("X-User-Id", "9"))
+        .perform(get("/api/approval-types").header("X-Tenant-Id", "3").header("X-User-Id", "9"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(0));
 
-    // 租户 2 无法更新租户 1 的类型
+    // 租户 3 无法更新租户 1 刚建的类型
     mockMvc
         .perform(
-            put("/api/approval-types/1")
-                .header("X-Tenant-Id", "2")
+            put("/api/approval-types/" + id)
+                .header("X-Tenant-Id", "3")
                 .header("X-User-Id", "9")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(CREATE_BODY))
