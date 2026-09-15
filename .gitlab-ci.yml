@@ -76,7 +76,9 @@ build-image:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: manual
   before_script:
-    - echo "build-image: 上游 framework 走内网 Nexus（本仓无 submodule），无需初始化"
+    # 注意：这一行**不能**出现 ASCII 的 ": "（YAML 会把未加引号的标量解析成 mapping →
+    #        GitLab 报 "before_script config should be a string or a nested array of strings"）
+    - echo "上游 framework 走内网 Nexus（本仓无 submodule），build-image 无需初始化 submodule"
   script:
     # ⚠️ robot 用户名里的 $ 不能走 CI 变量：GitLab 把 $lieshou 当未定义变量吃掉（Harbor 日志实测收到 robot-cloud+gitlab-ci）
     #    单引号里是字面量：GitLab 不替换、shell 也不展开
