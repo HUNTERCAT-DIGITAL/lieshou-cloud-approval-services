@@ -32,10 +32,11 @@ verify:
   before_script:
     # 内部 CA 进 JVM 信任库（job 容器不认 Caddy 自签 CA；CA 由 runner 挂载卷 /root/.m2 提供）
     - test -f /root/.m2/caddy-root.crt && keytool -importcert -noprompt -trustcacerts -alias caddy-root -file /root/.m2/caddy-root.crt -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit
+    - printf '<settings><mirrors><mirror><id>nexus-public</id><url>https://nexus.ts.huntercat.cn/repository/maven-public/</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>' > /tmp/read-settings.xml
   script:
     - java -version
     # 读一律走内网 Nexus（mirrorOf=*）—— framework-* 只在这里，Central 上没有
-    - mvn -B -ntp -s services/.m2-settings.xml verify
+    - mvn -B -ntp -s /tmp/read-settings.xml verify
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
@@ -50,16 +51,16 @@ deploy:
   rules:
     - if: '$CI_COMMIT_TAG'
   script:
+    # servers = 发布凭证；mirror 只服务读（*,!nexus 不劫持 distributionManagement 的 nexus）
+    - printf '<settings><servers><server><id>nexus</id><username>%s</username><password>%s</password></server></servers><mirrors><mirror><id>nexus-public</id><url>https://nexus.ts.huntercat.cn/repository/maven-public/</url><mirrorOf>*,!nexus</mirrorOf></mirror></mirrors></settings>' "$NEXUS_DEPLOY_USER" "$NEXUS_DEPLOY_PASS" > /tmp/ci-settings.xml
     # tag 必须与 pom 版本一致，否则拒发（防止 v0.4.0 下发成 0.3.1）
     - |
       set -e
-      ver=$(mvn -B -q -s services/.m2-settings.xml -pl services/approval help:evaluate -Dexpression=project.version -DforceStdout | tail -1)
+      ver=$(mvn -B -q -s /tmp/ci-settings.xml -pl services/approval help:evaluate -Dexpression=project.version -DforceStdout | tail -1)
       [ "$CI_COMMIT_TAG" = "v$ver" ] || { echo "❌ tag $CI_COMMIT_TAG 与 pom 版本 v$ver 不一致"; exit 1; }
       echo "发布 cn.huntercat:lieshoucloud-approval:$ver → Nexus maven-releases"
     # 内部 CA 进 JVM 信任库（job 容器不认 Caddy 自签 CA；CA 由 runner 挂载卷 /root/.m2 提供）
     - keytool -importcert -noprompt -trustcacerts -alias caddy-root -file /root/.m2/caddy-root.crt -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit
-    # servers = 发布凭证；mirror 只服务读（*,!nexus 不劫持 distributionManagement 的 nexus）
-    - printf '<settings><servers><server><id>nexus</id><username>%s</username><password>%s</password></server></servers><mirrors><mirror><id>nexus-public</id><url>https://nexus.ts.huntercat.cn/repository/maven-public/</url><mirrorOf>*,!nexus</mirrorOf></mirror></mirrors></settings>' "$NEXUS_DEPLOY_USER" "$NEXUS_DEPLOY_PASS" > /tmp/ci-settings.xml
     # -pl 只发 approval（依赖 framework-* 从 maven-public/本地库解析）；测试已在 verify 阶段卡过
     - mvn -B -ntp -s /tmp/ci-settings.xml -pl services/approval -DskipTests deploy
 
