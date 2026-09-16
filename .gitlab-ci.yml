@@ -36,7 +36,11 @@ verify:
   script:
     - java -version
     # 读一律走内网 Nexus（mirrorOf=*）—— framework-* 只在这里，Central 上没有
-    - mvn -B -ntp -s /tmp/read-settings.xml verify
+    - mvn -B -ntp -s /tmp/read-settings.xml clean verify
+    # 产物层守卫：jar 内 Flyway 迁移版本号必须唯一
+    #   为什么查产物不查源码：0.3.5 的坏制品里同时含 V4__seed_default_* 与 V4__seed_haizan_*，
+    #   而本仓任何提交都不同时含这两份 → 第二份来自构建目录残留，**只有拆 jar 才看得见**
+    - bash scripts/check-migration-versions.sh services/approval/target
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
@@ -62,6 +66,14 @@ deploy:
     # 内部 CA 进 JVM 信任库（job 容器不认 Caddy 自签 CA；CA 由 runner 挂载卷 /root/.m2 提供）
     - keytool -importcert -noprompt -trustcacerts -alias caddy-root -file /root/.m2/caddy-root.crt -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit
     # -pl 只发 approval（依赖 framework-* 从 maven-public/本地库解析）；测试已在 verify 阶段卡过
+    # ① 先**干净**构建：不 clean 会把上一次 target/classes 残留一起打进 jar
+    #    （0.3.5 制品就是这么坏的：jar 内两份 V4 → Flyway "Found more than one migration with version 4"
+    #      → approval 启动即崩、整栈起不来。该版本发布于 2026-09-15，且**没有对应 tag**，
+    #      属绕过 CI 的手工 `mvn deploy`；制品只允许经 CI tag 发布）
+    - mvn -B -ntp -s /tmp/ci-settings.xml -pl services/approval -DskipTests clean package
+    # ② 发布前守卫：查**产物**里迁移版本号是否唯一（重复即拒发）
+    - bash scripts/check-migration-versions.sh services/approval/target
+    # ③ 守卫通过才发（同源同状态重建，产物等价）
     - mvn -B -ntp -s /tmp/ci-settings.xml -pl services/approval -DskipTests deploy
 
 # 镜像构建 + 推送 Harbor（CD 第一段：可运行制品）
