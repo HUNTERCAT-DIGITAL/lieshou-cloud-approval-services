@@ -12,6 +12,9 @@
     </parent>
 
     <artifactId>lieshoucloud-approval</artifactId>
+    <!-- 显式版本：脱离 framework-parent 继承，本仓可独立发版
+         （parent 仍是 framework-parent 0.3.5，Nexus 已有；父版本升不升与本仓发版解耦） -->
+    <version>0.3.6</version>
     <name>lieshou-cloud · Approval Service</name>
     <description>审批流服务（通用审批请求 · tenant_id 强制过滤，ADR-0025 模式）</description>
 
